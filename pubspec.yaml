@@ -25,6 +25,8 @@ dependencies:
   flutter_osm_plugin: ^0.55.3
   arcore_flutter_plugin:
   ar_flutter_plugin: ^0.7.3
+  ed_screen_recorder:
+  path_provider: ^2.0.11
 
 dev_dependencies:
   flutter_test:
@@ -46,6 +48,8 @@ flutter:
  
   uses-material-design: true
 
+  assets:
+    - assets/
   # To add assets to your application, add an assets section, like this:
   # assets:
   #   - images/a_dot_burr.jpeg

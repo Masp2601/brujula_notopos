@@ -1,5 +1,5 @@
 import 'dart:io';
-import 'dart:math';
+import 'dart:async';
 
 import 'package:ar_flutter_plugin/datatypes/config_planedetection.dart';
 import 'package:ar_flutter_plugin/datatypes/node_types.dart';
@@ -7,9 +7,16 @@ import 'package:ar_flutter_plugin/managers/ar_session_manager.dart';
 import 'package:ar_flutter_plugin/managers/ar_object_manager.dart';
 import 'package:ar_flutter_plugin/models/ar_node.dart';
 import 'package:ar_flutter_plugin/widgets/ar_view.dart';
+import 'package:arcore_flutter_plugin/arcore_flutter_plugin.dart';
 import 'package:brujula_notopos/pages/home_screen.dart';
 import 'package:flutter/material.dart';
 import 'package:vector_math/vector_math_64.dart' as vector;
+
+import 'package:flutter/services.dart';
+import 'package:path_provider/path_provider.dart';
+import 'package:flutter/foundation.dart';
+
+import '../recorder/ed_screen_recorder.dart';
 
 class LocalAndWebObjectsWidget extends StatefulWidget {
   const LocalAndWebObjectsWidget({
@@ -27,6 +34,72 @@ class LocalAndWebObjectsWidget extends StatefulWidget {
 class _LocalAndWebObjectsWidgetState extends State<LocalAndWebObjectsWidget> {
   ARSessionManager? arSessionManager;
   ARObjectManager? arObjectManager;
+  ArCoreController? arCoreController;
+  //Inicio_Grabador
+  EdScreenRecorder? screenRecorder;
+  Map<String, dynamic>? _response;
+  bool inProgress = false;
+  @override
+  void initState() {
+    super.initState();
+    screenRecorder = EdScreenRecorder();
+  }
+
+  Future<void> startRecord({required String fileName}) async {
+    Directory? tempDir = await getApplicationDocumentsDirectory();
+    String? tempPath = tempDir.path;
+    try {
+      var startResponse = await screenRecorder?.startRecordScreen(
+        fileName: "",
+        //Optional. It will save the video there when you give the file path with whatever you want.
+        //If you leave it blank, the Android operating system will save it to the gallery.
+        dirPathToSave: tempPath,
+        audioEnable: true,
+      );
+      setState(() {
+        _response = startResponse;
+      });
+    } on PlatformException {
+      kDebugMode
+          ? debugPrint("Error: An error occurred while starting the recording!")
+          : null;
+    }
+  }
+
+  Future<void> stopRecord() async {
+    try {
+      var stopResponse = await screenRecorder?.stopRecord();
+      setState(() {
+        _response = stopResponse;
+      });
+    } on PlatformException {
+      kDebugMode
+          ? debugPrint("Error: An error occurred while stopping recording.")
+          : null;
+    }
+  }
+
+  Future<void> pauseRecord() async {
+    try {
+      await screenRecorder?.pauseRecord();
+    } on PlatformException {
+      kDebugMode
+          ? debugPrint("Error: An error occurred while pause recording.")
+          : null;
+    }
+  }
+
+  Future<void> resumeRecord() async {
+    try {
+      await screenRecorder?.resumeRecord();
+    } on PlatformException {
+      kDebugMode
+          ? debugPrint("Error: An error occurred while resume recording.")
+          : null;
+    }
+  }
+
+  //Fin_Grabador
   //String localObjectReference;
   ARNode? localObjectNode;
   //String webObjectReference;
@@ -42,7 +115,7 @@ class _LocalAndWebObjectsWidgetState extends State<LocalAndWebObjectsWidget> {
 
   bool showWorldOrigin = false;
 
-  @override
+  /* @override
   void dispose() {
     super.dispose();
     arSessionManager!.dispose();
@@ -88,54 +161,130 @@ class _LocalAndWebObjectsWidgetState extends State<LocalAndWebObjectsWidget> {
 
   void _addTransAmountZ() {
     newTransZ = newTransZ + 0.02;
-  }
+  }*/
 
   @override
   Widget build(BuildContext context) {
-    //String imageARUrl = widget.argument["image3D"]["imageARUrl"];
-    String imageARUrl =
-        "https://github.com/TuanVuuuu/tuanvu_assets/blob/tuanvu_03022023/assets/3d_images/satellite/animated_moon.glb?raw=true";
     return Scaffold(
-        appBar: AppBar(
-          backgroundColor: Colors.transparent,
-          elevation: 0,
+      appBar: AppBar(
+        backgroundColor: Colors.transparent,
+        elevation: 0,
+      ),
+      extendBodyBehindAppBar: true,
+      body: Stack(children: [
+        ArCoreView(
+          onArCoreViewCreated: _onArCoreViewCreated,
         ),
-        extendBodyBehindAppBar: true,
-        body: Stack(children: [
-          ARView(
-              onARViewCreated: ((arSessionManager, arObjectManager,
-                  arAnchorManager, arLocationManager) {
-                this.arSessionManager = arSessionManager;
-                this.arObjectManager = arObjectManager;
-                this.arSessionManager!.onInitialize(
-                      showFeaturePoints: false,
-                      showPlanes: true,
-                      customPlaneTexturePath: "Images/triangle.png",
-                      showWorldOrigin: showWorldOrigin,
-                      handleTaps: false,
-                    );
-                this.arObjectManager!.onInitialize();
-                //Download model to file system
-                httpClient = HttpClient();
-                // _downloadFile("https://github.com/KhronosGroup/glTF-Sample-Models/raw/master/2.0/Duck/glTF-Binary/Duck.glb", "LocalDuck.glb");
-                //_downloadFile("https://github.com/TuanVuuuu/tuanvuAR/blob/TuanVu-Assets/assets/3D_model/earth.glb", "LocalDuck.glb");
-                setState(() {
-                  //onFileSystemObjectAtOriginButtonPressed();
-                  onWebButton(imageARUrl);
-                });
-              }),
-              planeDetectionConfig: PlaneDetectionConfig.horizontalAndVertical),
-          Column(mainAxisAlignment: MainAxisAlignment.center, children: [
-            Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                _buildButtonScale(),
-                _buildButtonRotation(),
-              ],
-            ),
-          ]),
-          _buildButtonTrans(),
-        ]));
+        Column(mainAxisAlignment: MainAxisAlignment.center, children: [
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              _buildButtonScale(),
+              _buildButtonRotation(),
+            ],
+          ),
+        ]),
+        _buildButtonTrans(),
+      ]),
+    );
+  }
+
+  void _onArCoreViewCreated(ArCoreController controller) {
+    arCoreController = controller;
+
+    //_addSphere();
+    //_addCylindre();
+    _addCube();
+    _addCube1();
+    _addCube2();
+  }
+
+  /*Future _addSphere() async {
+    final ByteData textureBytes = await rootBundle.load('assets/linea.png');
+
+    final material = ArCoreMaterial(
+        color: Color.fromARGB(120, 66, 134, 244),
+        textureBytes: textureBytes.buffer.asUint8List());
+    final sphere = ArCoreSphere(
+      materials: [material],
+      radius: 0.1,
+    );
+    final node = ArCoreNode(
+      shape: sphere,
+      position: vector.Vector3(0, 0, -1.5),
+    );
+    arCoreController?.addArCoreNode(node);
+  }
+
+  void _addCylindre() {
+    final material = ArCoreMaterial(
+      color: Colors.red,
+      reflectance: 1.0,
+    );
+    final cylindre = ArCoreCylinder(
+      materials: [material],
+      radius: 0.5,
+      height: 0.3,
+    );
+    final node = ArCoreNode(
+      shape: cylindre,
+      position: vector.Vector3(0.0, -0.5, -2.0),
+    );
+    arCoreController?.addArCoreNode(node);
+  }*/
+
+  void _addCube() {
+    final material = ArCoreMaterial(
+      color: Color.fromARGB(120, 66, 134, 244),
+      metallic: 1.0,
+    );
+    final cube = ArCoreCube(
+      materials: [material],
+      size: vector.Vector3(0.5, 0.5, 0.5),
+    );
+    final node = ArCoreNode(
+      shape: cube,
+      position: vector.Vector3(-10.5, 10.5, -13.5),
+    );
+    arCoreController?.addArCoreNode(node);
+  }
+
+  void _addCube1() {
+    final material = ArCoreMaterial(
+      color: Color.fromARGB(120, 223, 7, 90),
+      metallic: 1.0,
+    );
+    final cube = ArCoreCube(
+      materials: [material],
+      size: vector.Vector3(0.5, 0.5, 0.5),
+    );
+    final node = ArCoreNode(
+      shape: cube,
+      position: vector.Vector3(-10.5, 10.5, -13.5),
+    );
+    arCoreController?.addArCoreNode(node);
+  }
+
+  void _addCube2() {
+    final material = ArCoreMaterial(
+      color: Color.fromARGB(120, 72, 231, 23),
+      metallic: 1.0,
+    );
+    final cube = ArCoreCube(
+      materials: [material],
+      size: vector.Vector3(0.5, 0.5, 0.5),
+    );
+    final node = ArCoreNode(
+      shape: cube,
+      position: vector.Vector3(-10.5, 10.5, -13.5),
+    );
+    arCoreController?.addArCoreNode(node);
+  }
+
+  @override
+  void dispose() {
+    arCoreController?.dispose();
+    super.dispose();
   }
 
   Widget _buildButtonTrans() {
@@ -144,100 +293,40 @@ class _LocalAndWebObjectsWidgetState extends State<LocalAndWebObjectsWidget> {
       child: Column(
         mainAxisAlignment: MainAxisAlignment.end,
         children: [
-          ElevatedButton(
-              style: ElevatedButton.styleFrom(
-                backgroundColor: Colors.transparent,
-                elevation: 0,
-              ),
-              onPressed: () {
-                if (webObjectNode != null) {
-                  setState(() {
-                    _subTransAmountY();
-                  });
-                  var newRotationAxis = vector.Vector3(0, 0, 0);
-                  newRotationAxis[1] = 1.0;
-                  final newTransform = Matrix4.identity();
-                  var newTranslation = vector.Vector3(0, 0, 0);
-                  newTranslation[0] = newTransZ;
-                  newTranslation[1] = newTransX;
-                  newTranslation[2] = newTransY;
-
-                  newTransform.setTranslation(newTranslation);
-                  newTransform.rotate(newRotationAxis, newRotationAmount);
-                  newTransform.scale(scale);
-
-                  webObjectNode!.transform = newTransform;
-                }
-              },
-              child: Transform.rotate(
-                angle: -45 * pi / 180,
-                child: ClipPath(
-                  clipper: CustomTriangleClipper(),
-                  child: Container(
-                    width: 50,
-                    height: 50,
-                    decoration: BoxDecoration(
-                      color: Colors.grey.withOpacity(0.4),
-                    ),
-                  ),
-                ),
-              )),
           Row(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
-              ElevatedButton(
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: Colors.transparent,
-                    elevation: 0,
-                  ),
-                  onPressed: () {
-                    if (webObjectNode != null) {
-                      setState(() {
-                        _subTransAmountZ();
-                      });
-                      var newRotationAxis = vector.Vector3(0, 0, 0);
-                      newRotationAxis[1] = 1.0;
-                      final newTransform = Matrix4.identity();
-                      var newTranslation = vector.Vector3(0, 0, 0);
-                      newTranslation[0] = newTransZ;
-                      newTranslation[1] = newTransX;
-                      newTranslation[2] = newTransY;
-
-                      newTransform.setTranslation(newTranslation);
-                      newTransform.rotate(newRotationAxis, newRotationAmount);
-                      newTransform.scale(scale);
-
-                      webObjectNode!.transform = newTransform;
-                    }
-                  },
-                  child: Transform.rotate(
-                    angle: -135 * pi / 180,
-                    child: ClipPath(
-                      clipper: CustomTriangleClipper(),
-                      child: Container(
-                        width: 50,
-                        height: 50,
-                        decoration: BoxDecoration(
-                          color: Colors.grey.withOpacity(0.4),
-                        ),
-                      ),
+              Center(
+                child: Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    Text(
+                      "File: ${(_response?['file'] as File?)?.path}",
+                      style: TextStyle(fontSize: 10),
                     ),
-                  )),
-              Container(
-                height: 70,
-                width: 60,
-                decoration: BoxDecoration(
-                  color: Colors.red.withOpacity(0.4),
-                  shape: BoxShape.circle,
-                ),
-                child: InkWell(
-                  onTap: () {
-                    Navigator.of(context).push(
-                        MaterialPageRoute(builder: (context) => HomePage()));
-                  },
+                    Text("Status: ${(_response?['success']).toString()}"),
+                    Text("Event: ${_response?['eventname']}"),
+                    Text("Progress: ${(_response?['progressing']).toString()}"),
+                    Text("Message: ${_response?['message']}"),
+                    Text("Video Hash: ${_response?['videohash']}"),
+                    Text("Start Date: ${(_response?['startdate']).toString()}"),
+                    Text("End Date: ${(_response?['enddate']).toString()}"),
+                    ElevatedButton(
+                        onPressed: () => startRecord(fileName: ""),
+                        child: const Text('START RECORD')),
+                    ElevatedButton(
+                        onPressed: () => resumeRecord(),
+                        child: const Text('RESUME RECORD')),
+                    ElevatedButton(
+                        onPressed: () => pauseRecord(),
+                        child: const Text('PAUSE RECORD')),
+                    ElevatedButton(
+                        onPressed: () => stopRecord(),
+                        child: const Text('STOP RECORD')),
+                  ],
                 ),
               ),
-              ElevatedButton(
+              /* ElevatedButton(
                   style: ElevatedButton.styleFrom(
                     backgroundColor: Colors.transparent,
                     elevation: 0,
@@ -274,10 +363,10 @@ class _LocalAndWebObjectsWidgetState extends State<LocalAndWebObjectsWidget> {
                         ),
                       ),
                     ),
-                  ))
+                  ))*/
             ],
           ),
-          ElevatedButton(
+          /* ElevatedButton(
               style: ElevatedButton.styleFrom(
                 backgroundColor: Colors.transparent,
                 elevation: 0,
@@ -314,7 +403,7 @@ class _LocalAndWebObjectsWidgetState extends State<LocalAndWebObjectsWidget> {
                     ),
                   ),
                 ),
-              )),
+              )),*/
         ],
       ),
     );
@@ -326,7 +415,7 @@ class _LocalAndWebObjectsWidgetState extends State<LocalAndWebObjectsWidget> {
         //_build Button Rotation
         Column(
           children: [
-            ElevatedButton(
+            /*ElevatedButton(
               style: ElevatedButton.styleFrom(
                 backgroundColor: Colors.transparent,
                 elevation: 0,
@@ -356,8 +445,7 @@ class _LocalAndWebObjectsWidgetState extends State<LocalAndWebObjectsWidget> {
               }),
               child: Container(
                 decoration: BoxDecoration(
-                    color: Colors.grey.withOpacity(0.4),
-                    shape: BoxShape.circle),
+                    color: Colors.red.withOpacity(0.4), shape: BoxShape.circle),
                 height: 60,
                 width: 60,
                 child: const Icon(
@@ -408,14 +496,14 @@ class _LocalAndWebObjectsWidgetState extends State<LocalAndWebObjectsWidget> {
                   ),
                 ),
               ),
-            )
+            )*/
           ],
         ),
         // _build Button Trans X
         const SizedBox(height: 30),
         Column(
           children: [
-            ElevatedButton(
+            /*ElevatedButton(
                 style: ElevatedButton.styleFrom(
                   backgroundColor: Colors.transparent,
                   elevation: 0,
@@ -449,7 +537,7 @@ class _LocalAndWebObjectsWidgetState extends State<LocalAndWebObjectsWidget> {
                       width: 50,
                       height: 50,
                       decoration: BoxDecoration(
-                        color: Colors.grey.withOpacity(0.4),
+                        color: Colors.blue.withOpacity(0.4),
                       ),
                     ),
                   ),
@@ -492,7 +580,7 @@ class _LocalAndWebObjectsWidgetState extends State<LocalAndWebObjectsWidget> {
                       ),
                     ),
                   ),
-                )),
+                )),*/
           ],
         ),
       ],
@@ -504,7 +592,7 @@ class _LocalAndWebObjectsWidgetState extends State<LocalAndWebObjectsWidget> {
       mainAxisAlignment: MainAxisAlignment.spaceEvenly,
       children: [
         //ElevatedButton(onPressed: onLocalObjectShuffleButtonPressed, child: Text("Shuffle Local\nobject at Origin")),
-        ElevatedButton(
+        /*ElevatedButton(
           style: ElevatedButton.styleFrom(
             backgroundColor: Colors.transparent,
             elevation: 0,
@@ -539,14 +627,14 @@ class _LocalAndWebObjectsWidgetState extends State<LocalAndWebObjectsWidget> {
               size: 30,
             ),
           ),
-        ),
+        ),*/
         ElevatedButton(
           style: ElevatedButton.styleFrom(
               backgroundColor: Colors.transparent, elevation: 0),
           onPressed: () {
             if (webObjectNode != null) {
               setState(() {
-                _addScale();
+                //_addScale();
               });
               var newRotationAxis = vector.Vector3(0, 0, 0);
               newRotationAxis[1] = 1.0;
@@ -562,91 +650,23 @@ class _LocalAndWebObjectsWidgetState extends State<LocalAndWebObjectsWidget> {
               webObjectNode!.transform = newTransform;
             }
           },
+          //Localizador del mapa
           child: Container(
-              decoration: BoxDecoration(
-                  color: Colors.grey.withOpacity(0.4), shape: BoxShape.circle),
-              height: 60,
-              width: 60,
-              child: const Icon(Icons.zoom_in, size: 30)),
+            decoration: BoxDecoration(
+                color: Colors.red.withOpacity(0.4), shape: BoxShape.circle),
+            height: 60,
+            width: 60,
+            child: InkWell(
+                onTap: () {
+                  Navigator.of(context).push(
+                      MaterialPageRoute(builder: (context) => HomePage()));
+                },
+                child: const Icon(Icons.location_on, size: 30)),
+          ),
         ),
       ],
     );
   }
-
-  // void onARViewCreated(ARSessionManager arSessionManager, ARObjectManager arObjectManager, ARAnchorManager arAnchorManager, ARLocationManager arLocationManager) {
-  //   this.arSessionManager = arSessionManager;
-  //   this.arObjectManager = arObjectManager;
-  //   this.arSessionManager!.onInitialize(
-  //         showFeaturePoints: false,
-  //         showPlanes: true,
-  //         customPlaneTexturePath: "assets/triangle.png",
-  //         showWorldOrigin: false,
-  //         handleTaps: false,
-  //       );
-  //   this.arObjectManager!.onInitialize();
-  //   //Download model to file system
-  //   httpClient = new HttpClient();
-  //   _downloadFile("https://github.com/TuanVuuuu/tuanvuAR/blob/TuanVu-01/assets/3D_model/earth.glb?raw=true", "LocalDuck.glb");
-  //   setState(() {
-  //     onFileSystemObjectAtOriginButtonPressed();
-  //   });
-  //   // Alternative to use type fileSystemAppFolderGLTF2:
-  //   //_downloadAndUnpack(
-  //   //    "https://drive.google.com/uc?export=download&id=1fng7yiK0DIR0uem7XkV2nlPSGH9PysUs",
-  //   //    "Chicken_01.zip");
-  // }
-
-  // Future<void> onTakeScreenshot() async {
-  //   var image = await arSessionManager!.snapshot();
-  //   await showDialog(
-  //       context: context,
-  //       builder: (_) => Dialog(
-  //             child: Container(
-  //               height: MediaQuery.of(context).size.height * 0.8,
-  //               width: MediaQuery.of(context).size.width * 0.8,
-  //               decoration: BoxDecoration(image: DecorationImage(image: image, fit: BoxFit.cover)),
-  //             ),
-  //           ));
-  // }
-
-  // Future<File> _downloadFile(String url, String filename) async {
-  //   var request = await httpClient!.getUrl(Uri.parse(url));
-  //   var response = await request.close();
-  //   var bytes = await consolidateHttpClientResponseBytes(response);
-  //   String dir = (await getApplicationDocumentsDirectory()).path;
-  //   File file = new File('$dir/$filename');
-  //   await file.writeAsBytes(bytes);
-  //   print("Downloading finished, path: " + '$dir/$filename');
-  //   return file;
-  // }
-
-  // Future<void> _downloadAndUnpack(String url, String filename) async {
-  //   var request = await httpClient!.getUrl(Uri.parse(url));
-  //   var response = await request.close();
-  //   var bytes = await consolidateHttpClientResponseBytes(response);
-  //   String dir = (await getApplicationDocumentsDirectory()).path;
-  //   File file = new File('$dir/$filename');
-  //   await file.writeAsBytes(bytes);
-  //   print("Downloading finished, path: " + '$dir/$filename');
-  //   // To print all files in the directory: print(Directory(dir).listSync());
-  //   try {
-  //     await ZipFile.extractToDirectory(zipFile: File('$dir/$filename'), destinationDir: Directory(dir));
-  //     print("Unzipping successful");
-  //   } catch (e) {
-  //     print("Unzipping failed: " + e.toString());
-  //   }
-  // }
-
-  // Future<void> onLocalObjectAtOriginButtonPressed() async {
-  //   if (localObjectNode != null) {
-  //     arObjectManager!.removeNode(localObjectNode!);
-  //     localObjectNode = null;
-  //   } else {
-  //     var newNode = ARNode(type: NodeType.localGLTF2, uri: "assets/localModel/scene.gltf", scale: Vector3(0.2, 0.2, 0.2), position: Vector3(0.0, 0.0, 0.0), rotation: Vector4(1.0, 0.0, 0.0, 0.0));
-  //     bool? didAddLocalNode = await arObjectManager!.addNode(newNode);
-  //     localObjectNode = (didAddLocalNode!) ? newNode : null;
-  //   }
-  // }
 
   Future<void>? onWebButton(String imageARUrl) async {
     if (webObjectNode != null) {
@@ -661,61 +681,6 @@ class _LocalAndWebObjectsWidgetState extends State<LocalAndWebObjectsWidget> {
       webObjectNode = (didAddWebNode!) ? newNode : null;
     }
   }
-
-  // Future<void> onFileSystemObjectAtOriginButtonPressed() async {
-  //   if (fileSystemNode != null) {
-  //     arObjectManager!.removeNode(fileSystemNode!);
-  //     fileSystemNode = null;
-  //   } else {
-  //     var newNode = ARNode(type: NodeType.fileSystemAppFolderGLB, uri: "LocalDuck.glb", scale: Vector3(0.2, 0.2, 0.2));
-  //     //Alternative to use type fileSystemAppFolderGLTF2:
-  //     //var newNode = ARNode(
-  //     //    type: NodeType.fileSystemAppFolderGLTF2,
-  //     //    uri: "Chicken_01.gltf",
-  //     //    scale: Vector3(0.2, 0.2, 0.2));
-  //     bool? didAddFileSystemNode = await arObjectManager!.addNode(newNode);
-  //     fileSystemNode = (didAddFileSystemNode!) ? newNode : null;
-  //   }
-  // }
-
-  // Future<void> onLocalObjectShuffleButtonPressed() async {
-  //   if (localObjectNode != null) {
-  //     var newScale = Random().nextDouble() / 3;
-  //     //var newScale = scale + 1;
-  //     var newTranslationAxis = Random().nextInt(3);
-  //     var newTranslationAmount = Random().nextDouble() / 3;
-  //     var newTranslation = Vector3(0, 0, 0);
-  //     newTranslation[newTranslationAxis] = newTranslationAmount;
-  //     var newRotationAxisIndex = Random().nextInt(3);
-  //     var newRotationAmount = Random().nextDouble();
-  //     var newRotationAxis = Vector3(0, 0, 0);
-  //     newRotationAxis[newRotationAxisIndex] = 1.0;
-  //     final newTransform = Matrix4.identity();
-  //     //newTransform.setTranslation(newTranslation);
-  //     //newTransform.rotate(newRotationAxis, newRotationAmount);
-  //     newTransform.scale(newScale);
-  //     localObjectNode!.transform = newTransform;
-  //   }
-  // }
-
-  // Future<void> onWebObjectShuffleButtonPressed(bool? sub, bool? add) async {
-  //   if (webObjectNode != null) {
-  //     // var newScale = Random().nextDouble() / 3;
-  //     // var newTranslationAxis = Random().nextInt(3);
-  //     // var newTranslationAmount = Random().nextDouble() / 3;
-  //     // var newTranslation = Vector3(0, 0, 0);
-  //     // newTranslation[newTranslationAxis] = newTranslationAmount;
-  //     // var newRotationAxisIndex = Random().nextInt(3);
-  //     // var newRotationAmount = Random().nextDouble();
-  //     // var newRotationAxis = Vector3(0, 0, 0);
-  //     // newRotationAxis[newRotationAxisIndex] = 1.0;
-  //     final newTransform = Matrix4.identity();
-  //     // newTransform.setTranslation(newTranslation);
-  //     // newTransform.rotate(newRotationAxis, newRotationAmount);
-  //     newTransform.scale(scale);
-  //     webObjectNode!.transform = newTransform;
-  //   }
-  // }
 }
 
 class CustomTriangleClipper extends CustomClipper<Path> {
