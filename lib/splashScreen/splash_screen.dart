@@ -1,7 +1,6 @@
 import 'package:animated_splash_screen/animated_splash_screen.dart';
 import 'package:brujula_notopos/pages/ar_screen.dart';
-import 'package:brujula_notopos/pages/hello_world.dart';
-import 'package:brujula_notopos/pages/home_screen.dart';
+
 
 import 'package:flutter/material.dart';
 
