@@ -31,7 +31,7 @@ class _HomePageState extends State<HomePage> {
                   size: 48,
                 ),
               ));
-          var key = '${position!.latitude} ${position!.longitude}';
+          var key = '${position.latitude} ${position.longitude}';
           markerMap[key] = markerMap.length.toString();
         }
       });
