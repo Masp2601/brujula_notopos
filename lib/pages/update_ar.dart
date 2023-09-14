@@ -140,6 +140,50 @@ class _LocalWidgetState extends State<LocalWidget> {
 
   void _onArCoreViewCreated(ArCoreController controller) {
     arCoreController = controller;
+    _addImage(arCoreController!);
+    _addImage1(arCoreController!);
+    _addImage2(arCoreController!);
+  }
+
+  Future<Uint8List> getImageBytes(String imageName) async {
+    final ByteData data = await rootBundle.load('assets/$imageName');
+    return data.buffer.asUint8List();
+  }
+
+  void _addImage(ArCoreController controller) async {
+    final imagebytes = await getImageBytes("lineaGiron.png");
+    final node = ArCoreNode(
+      image:ArCoreImage(bytes:imagebytes,width:750,height:750),
+      position: vector.Vector3(10.5,15.5,-10.5),
+    );
+    controller.addArCoreNode(node);
+  }
+
+  void _addImage1(ArCoreController controller) async {
+    final imagebytes = await getImageBytes("lineaNacional.png");
+    final node = ArCoreNode(
+      image:ArCoreImage(bytes:imagebytes,width:650,height:650),
+      position: vector.Vector3(-0.5, -0.5, -3.5),
+    );
+    controller.addArCoreNode(node);
+  }
+
+  void _addImage2(ArCoreController controller) async {
+    final imagebytes = await getImageBytes("lineaZipaquira.png");
+    final node = ArCoreNode(
+      image:ArCoreImage(bytes:imagebytes,width:850,height:850),
+      position: vector.Vector3(3.5, 5.5, -5.5),
+    );
+    controller.addArCoreNode(node);
+  }
+
+  @override
+  void dispose() {
+    arCoreController?.dispose();
+    super.dispose();
+  }
+  /*void _onArCoreViewCreated(ArCoreController controller) {
+    arCoreController = controller;
     _addSphere();
 
   }
@@ -150,6 +194,8 @@ class _LocalWidgetState extends State<LocalWidget> {
     final material = ArCoreMaterial(
         color: Color.fromARGB(120, 66, 134, 244),
         textureBytes: textureBytes.buffer.asUint8List());
+
+
     final sphere = ArCoreSphere(
       materials: [material],
       radius: 0.1,
@@ -166,7 +212,7 @@ class _LocalWidgetState extends State<LocalWidget> {
   void dispose() {
     arCoreController?.dispose();
     super.dispose();
-  }
+  }*/
 
   Widget _buildButtonTrans() {
     return Padding(
